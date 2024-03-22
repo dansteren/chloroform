@@ -1,63 +1,72 @@
-# #!/bin/bash
+#!/bin/bash
 
-# # Chloroform is a script for setting up suspend-then-hibernate on your system.
-# # It will detect swapfiles, make them an adequate size, and then enable hibernation.
+# Chloroform is a script for setting up suspend-then-hibernate on your system.
+# It will detect swapfiles, make them an adequate size, and then enable hibernation.
 
-# chloroform() {
-#   echo "go to sleep..."
-#   detectSwapSpace
-# }
+chloroform() {
+  echo "Chloroform: Preparing to set up suspend-then-hibernate..."
+  detectSwapFile
+}
 
-# detectSwapFile() {
-#   # The main command to run here is `swapon --show`. We need to use the output
-#   # of this command to determine if they are using a swapfile, a swap partition,
-#   # or don't have swap enabled.
+detectSwapFile() {
+  local swapOutput=$(swapon --show)
+  if [[ -z $swapOutput ]]; then
+    echo "Swap is not enabled. Creating swap..."
+    createSwap
+  elif [[ $swapOutput == */swapfile* ]]; then
+    echo "Detected swapfile."
+    checkSwap
+  elif [[ $swapOutput == */dev/* ]]; then
+    echo "Swap partitions aren't currently supported."
+    exit 1
+  else
+    echo "Unexpected swap configuration."
+    exit 1
+  fi
+}
 
-#   # If they are using a swap partition then we should exit with non-zero status
-#   # and say "swap partitions aren't currently supported".
+checkSwap() {
+  local totalSwap=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+  local totalRam=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+  if [ "$totalSwap" -ge "$totalRam" ]; then
+    echo "Swap size is adequate."
+    postCheckSwap
+  else
+    echo "Swap size is not adequate. Resizing swap..."
+    resizeSwap
+  fi
+}
 
-#   # If they don't have swap, say "Swap is not enabled" and then call createSwap
+createSwap() {
+  echo "Turning off swap..."
+  # sudo swapoff -a
 
-#   # If swap is enabled then say, "detected swapfile" and call checkSwap
+  echo "Creating a 32GB swapfile..."
+  # sudo dd if=/dev/zero of=/swapfile bs=1G count=32 status=progress
 
-#   # Note: you can tell which one it is based on the output of swapon. I think
-#   # if it outputs something like /dev/sdax partition then you are using a swap
-#   # partition, and if it outputs /swapfile then they are using a swap file. But
-#   # you probably know better than me here how to detect.
-#   echo "[detectSwapFile] Not implemented"
-# }
+  echo "Setting swapfile permissions..."
+  # sudo chmod 600 /swapfile
 
-# checkSwap() {
-#   # this function should run `free` and check the output to see if the total size
-#   # of the swap is the same or bigger than the total memory. If it is big enough
-#   # then you can call postCheckSwap() (I'm not sure what it'll do yet so this
-#   # will be a placeholder).
+  echo "Making swapfile usable for swap..."
+  # sudo mkswap /swapfile
 
-#   # If it isn't big enough then call resizeSwap
-#   echo "[checkSwap] Not implemented"
-# }
+  echo "Activating swapfile..."
+  # sudo swapon /swapfile
 
-# createSwap() {
-#   # This will:
+  enableAutoMountOnStartup
+}
 
-#   # 1. turnoff swap
-#   # `sudo swapoff -a`
-#   #
-#   # 2. create a swapfile
-#   # sudo dd if=/dev/zero of=/swapfile bs=1G count=32
-#   #
-#   # 3. Update the permissions
-#   # sudo chmod 600 /swapfile
-#   #
-#   # 4. Make it usable for swap
-#   # `sudo mkswap /swapfile`
-#   #
-#   # 5. Make it the active swapfile
-#   # `sudo swapon /swapfile`
-#   #
-#   # 6. Call enableAutoMountOnStartup
-#   echo "[checkSwap] Not implemented"
-# }
+resizeSwap() {
+  echo "[resizeSwap] Not implemented yet."
+}
 
+enableAutoMountOnStartup() {
+  echo "Enabling swapfile to be mounted on startup..."
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+}
 
-# chloroform
+postCheckSwap() {
+  echo "[postCheckSwap] Placeholder for further actions after checking swap size."
+}
+
+chloroform
